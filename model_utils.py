@@ -2,6 +2,8 @@ import numpy as np
 import jax.numpy as jnp
 from jax.random import uniform
 from jax import lax, vmap
+import flax.linen as nn
+
 from einops import rearrange, reduce, repeat
 
 from config import Config
@@ -66,8 +68,16 @@ def compute_radiance_field(model, points):
     """
     # compared to jax.vmap, lax.map will apply the function element by element\
     # for reduced memory usage
-    #model_output = vmap(model, rearrange(points, "i j b k -> (i j) b k" ))
-    model_output = lax.map(model, rearrange(points, "i j b k -> (i j) b k" ))
+    # points: (w, h, samples, 3) -> (-1, batch, 3)
+    model_output = lax.map(model, jnp.reshape(points, (-1, config.batch_size, 3))) 
+    
+    # model_output:(-1, batch, 4) -> radiance_field: (w, h, samples, 4)
+    radiance_field = jnp.reshape(model_output, points.shape[:-1] + (4,))
+    
+    opacities = nn.relu(radiance_field[..., 3])
+    colors = nn.sigmoid(radiance_field[..., :3])
+
+    return opacities, colors
 
 
 

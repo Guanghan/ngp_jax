@@ -67,7 +67,7 @@ class BasicNeRF(nn.Module):
             dtype = self.dtype,
             precision = self.precision,
             kernel_init=jax.nn.initializers.glorot_uniform()
-            )(x)
+            )(encoded_points)
 
             # relu
             x = nn.relu(x)
