@@ -42,7 +42,14 @@ def generate_rays(ht, wid, focal, pose):
 
 def compute_3d_points(ray_origins, ray_directions, rand_num_generator=None):
     """
-    Compute 3d query points for volumetric rendering
+    Compute the points along the ray by adding the ray origin to the ray direction multiplied by the
+    sample space
+    
+    :param ray_origins: the origin of the ray
+    :param ray_directions: (i, j, 3)
+    :param rand_num_generator: a random number generator that is used to inject noise into the sample
+    space
+    :return: The points along the ray and the t_vals
     """
     # sample space to parametrically compute the ray points
     t_vals = jnp.linspace(config.near_bound, config.far_bound, config.num_sample_points)
@@ -64,7 +71,12 @@ def compute_3d_points(ray_origins, ray_directions, rand_num_generator=None):
 
 def compute_radiance_field(model, points):
     """
-    Compute radiance field
+    Compute radiance field:
+    Take the points, reshape them to be a list of batches, apply the model to each batch, and then
+    reshape the output back to the original shape
+    
+    :param model: the model we trained
+    :param points: (w, h, samples, 3)
     """
     # compared to jax.vmap, lax.map will apply the function element by element\
     # for reduced memory usage
@@ -80,8 +92,72 @@ def compute_radiance_field(model, points):
     return opacities, colors
 
 
+def compute_adjacent_distances(t_vals, ray_directions):
+    """
+    It computes the distance between adjacent points along a ray
+    
+    :param t_vals: The t values of the intersections of the rays with the mesh
+    :param ray_directions: The direction of each ray
+    :return: The distances between the points on the ray that intersect with the object.
+    """
+    distances = t_vals[..., 1:] - t_vals[..., :-1]
+    distances = jnp.concatenate([
+        distances,
+        np.broadcast_to([config.epsilon], distances[..., :1].shape)
+    ], axis=-1)
+
+    # Multiply each distance by the norm of its corresponding direction ray\
+    # to convert to real world distance (accounts for non-unit directions)
+    distances = distances * jnp.lialg.norm(ray_directions[..., None, :], axis=-1)
+    return distances
 
 
+def compute_rgb_weights(opacities, distances):
+    """
+    :param opacities: The opacity of each voxel
+    :param distances: the distance from the camera to each point in the volume
+    :return: The color alpha composition weights for the samples.
+    """
+    density = jnp.exp(-opacities * distances)
+    alpha = 1.0 - density
+    clipped_diff = jnp.clip(1.0 - alpha, 1e-10, 1.0)
+    transmittance = jnp.cumprod(
+        jnp.concatenate(
+            [jnp.ones_like(clipped_diff[..., :1]), clipped_diff[..., :-1]], axis=-1
+        ), 
+        axis = -1
+    )
+    return alpha * transmittance
 
+
+def perform_volume_rendering(model, ray_origins, ray_directions, rand_num_generator=None):
+    """
+    Volume rendering
+    """
+    # compute 3d query points
+    points, t_vals = compute_3d_points(ray_origins, ray_directions, rand_num_generator)
+
+    # get distances between adjacent intervals along sample space
+    distances = compute_adjacent_distances(t_vals, ray_directions)
+    
+    # get color and opacities from MLPs
+    opacities, colors = compute_radiance_field(model, points)
+
+    # compute weight for the RGB color of each sample along each ray
+    rgb_weights = compute_rgb_weights(opacities, distances)
+
+    # compute weighted RGB color of each sample along each ray
+    rgb_map = jnp.sum(rgb_weights[..., None] * colors, axis=-2)
+
+    # compute the estimated depth map
+    depth_map = jnp.sum(rgb_weights * t_vals, axis = -1)
+
+    # sum of weights along each ray; value in range [0, 1]
+    acc_map = jnp.sum(rgb_weights, axis=-1)
+
+    # disparity map: inverse of the depth map
+    disparity_map = 1. / jnp.maximum(1e-10, depth_map / acc_map)
+
+    return rgb_map, depth_map, acc_map, disparity_map, opacities
 
 
