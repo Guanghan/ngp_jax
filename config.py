@@ -32,3 +32,6 @@ class Config:
     lr: float = 5e-4  # learning rate
     train_epochs: int = 1000 # number of training epoches
     pot_interval: int = 100 # epoch interval for plotting results during training
+
+    # visualization
+    plot_interval = 5  # plot validation result after this number of epoches
