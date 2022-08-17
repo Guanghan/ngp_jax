@@ -1,7 +1,11 @@
-from gettext import translation
 import numpy as np
 import jax.numpy as jnp
+from jax.random import uniform
+from jax import lax, vmap
 from einops import rearrange, reduce, repeat
+
+from config import Config
+config = Config()
 
 
 def generate_rays(ht, wid, focal, pose):
@@ -18,8 +22,8 @@ def generate_rays(ht, wid, focal, pose):
     # Create a 2D rectangular grid for the rays corresponding to image dims
     i, j = jnp.meshgrid(np.arange(wid), np.arange(ht), indexing="xy")
     offset_x = offset_y = 0.5
-    transformed_i = (i - wid * offset_x) / focal # Normalize the x-axis coordinates
-    transformed_j = -(j - ht * offset_y) / focal # Normalize the y-axis coordinates
+    transformed_i = (i - wid * offset_x) / focal 
+    transformed_j = -(j - ht * offset_y) / focal 
     # Create the unit vectors corresponding to ray directions
     k = -jnp.ones_like(i) # z-axis coordinates
     directions = jnp.stack([transformed_i, transformed_j, k], axis=-1)
@@ -32,3 +36,42 @@ def generate_rays(ht, wid, focal, pose):
     ray_origins = repeat(translation_matrix, 'k -> i j k', i=wid, j=ht, k=3)
     
     return jnp.stack([ray_origins, ray_directions])
+
+
+def compute_3d_points(ray_origins, ray_directions, rand_num_generator=None):
+    """
+    Compute 3d query points for volumetric rendering
+    """
+    # sample space to parametrically compute the ray points
+    t_vals = jnp.linspace(config.near_bound, config.far_bound, config.num_sample_points)
+
+    # inject a random noise into the sample space to make it continuous
+    if rand_num_generator is not None:
+        t_shape = ray_origins.shape[:-1] + (config.num_sample_points,)
+        noise = uniform(rand_num_generator, t_shape) * (config.far_bound - config.near_bound) / config.num_sample_points
+        t_vals += noise
+    
+    # compute the ray traversal points using: r(t) = o + d*t
+    ray_origins = rearrange(ray_origins, "i j k -> i j 1 k")
+    ray_directions = rearrange(ray_directions, "i j k -> i j 1 k")
+    t_vals_flat = rearrange(t_vals, "n -> n 1")
+    points = ray_origins + ray_directions * t_vals_flat
+
+    return points, t_vals
+
+
+def compute_radiance_field(model, points):
+    """
+    Compute radiance field
+    """
+    # compared to jax.vmap, lax.map will apply the function element by element\
+    # for reduced memory usage
+    #model_output = vmap(model, rearrange(points, "i j b k -> (i j) b k" ))
+    model_output = lax.map(model, rearrange(points, "i j b k -> (i j) b k" ))
+
+
+
+
+
+
+

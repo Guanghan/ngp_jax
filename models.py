@@ -1,4 +1,3 @@
-from tkinter import N
 import jax, flax, optax
 from jax import lax
 import flax.linen as nn
@@ -54,7 +53,7 @@ class BasicNeRF(nn.Module):
     """
     dtype: Any = jnp.float32
     precision: Any = lax.Precision.DEFAULT
-    apply_positional_concoding: bool = config.apply_positional_encoding
+    apply_positional_encoding: bool = config.apply_positional_encoding
 
     @nn.compact
     def __call__(self, input_points):
