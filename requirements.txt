@@ -4,3 +4,5 @@ jaxlib
 flax
 gin-config
 eiops
+imageio
+tqdm
