@@ -5,4 +5,5 @@ flax
 gin-config
 einops
 imageio
+imageio-ffmpeg
 tqdm

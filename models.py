@@ -43,6 +43,44 @@ def positional_encoding_trig(inputs):
     return jnp.concatenate([inputs] + [four_feat], axis=-1)
 
 
+class BasicNeRF2(nn.Module):
+    """
+    An even simpler NeRF than the vanila NeRF:
+    (1) xyz and direction share the same encoding, default_freqs = 6
+    (2) output (r, g, b, sigma) together, do NOT use the two-stage scheme: \
+        first input xyz, output sigma
+        then input dir and sigma, output rgb
+    """
+    dtype: Any = jnp.float32
+    precision: Any = lax.Precision.DEFAULT
+    apply_positional_encoding: bool = config.apply_positional_encoding
+
+    @nn.compact
+    def __call__(self, input_points):
+        # Apply positional encoding to raw input points
+        x = positional_encoding(input_points) if self.apply_positional_encoding \
+            else input_points
+        
+        for i in range(config.num_dense_layers):
+            # fc layer
+            x = nn.Dense(config.dense_layer_width,
+            dtype = self.dtype,
+            precision = self.precision,
+            kernel_init=jax.nn.initializers.glorot_uniform()
+            )(x)
+
+            # relu
+            x = nn.relu(x)
+
+            # skip connection
+            x = jnp.concatenate([x, input_points], axis=-1) \
+                if i==config.num_dense_layers//2 else x
+        
+        # output consists of 4 values: (r, g, b, sigma)
+        x = nn.Dense(4, dtype=self.dtype, precision=self.precision)(x)
+        return x
+
+
 class BasicNeRF(nn.Module):
     """
     An even simpler NeRF than the vanila NeRF:
@@ -79,7 +117,7 @@ class BasicNeRF(nn.Module):
         # output consists of 4 values: (r, g, b, sigma)
         x = nn.Dense(4, dtype=self.dtype, precision=self.precision)(x)
         return x
-    
+
 class VanilaNeRF(nn.Module):
     """
     The original NeRF described in the paper:
