@@ -60,6 +60,7 @@ def train_step(state, batch, rng):
 
     # compute PSNR
     train_psnr = -10.0 * jnp.log(train_loss) / jnp.log(10.0)
+    return train_loss, train_psnr, new_state
 
 
 @jit
