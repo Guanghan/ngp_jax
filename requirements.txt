@@ -3,6 +3,6 @@ jax
 jaxlib
 flax
 gin-config
-eiops
+einops
 imageio
 tqdm
