@@ -55,10 +55,13 @@ def compute_3d_points(ray_origins, ray_directions, rand_num_generator=None):
     t_vals = jnp.linspace(config.near_bound, config.far_bound, config.num_sample_points)
 
     # inject a random noise into the sample space to make it continuous
+    '''
+    # needs to debug
     if rand_num_generator is not None:
         t_shape = ray_origins.shape[:-1] + (config.num_sample_points,)
         noise = uniform(rand_num_generator, t_shape) * (config.far_bound - config.near_bound) / config.num_sample_points
-        t_vals += noise
+        t_vals = t_vals + noise
+    '''
     
     # compute the ray traversal points using: r(t) = o + d*t
     ray_origins = rearrange(ray_origins, "i j k -> i j 1 k")
@@ -108,7 +111,7 @@ def compute_adjacent_distances(t_vals, ray_directions):
 
     # Multiply each distance by the norm of its corresponding direction ray\
     # to convert to real world distance (accounts for non-unit directions)
-    distances = distances * jnp.lialg.norm(ray_directions[..., None, :], axis=-1)
+    distances = distances * jnp.linalg.norm(ray_directions[..., None, :], axis=-1)
     return distances
 
 
@@ -135,27 +138,35 @@ def perform_volume_rendering(model, ray_origins, ray_directions, rand_num_genera
     Volume rendering
     """
     # compute 3d query points
+    #print("compute 3d points")
     points, t_vals = compute_3d_points(ray_origins, ray_directions, rand_num_generator)
 
     # get distances between adjacent intervals along sample space
+    #print("compute adjacent distances")
     distances = compute_adjacent_distances(t_vals, ray_directions)
     
     # get color and opacities from MLPs
+    #print("compute radiance field")
     opacities, colors = compute_radiance_field(model, points)
 
     # compute weight for the RGB color of each sample along each ray
+    #print("compute rgb weights")
     rgb_weights = compute_rgb_weights(opacities, distances)
 
     # compute weighted RGB color of each sample along each ray
+    #print("compute rgb map")
     rgb_map = jnp.sum(rgb_weights[..., None] * colors, axis=-2)
 
     # compute the estimated depth map
+    #print("compute depth map")
     depth_map = jnp.sum(rgb_weights * t_vals, axis = -1)
 
     # sum of weights along each ray; value in range [0, 1]
+    #print("compute acc map")
     acc_map = jnp.sum(rgb_weights, axis=-1)
 
     # disparity map: inverse of the depth map
+    #print("compute disparity map")
     disparity_map = 1. / jnp.maximum(1e-10, depth_map / acc_map)
 
     return rgb_map, depth_map, acc_map, disparity_map, opacities

@@ -17,7 +17,7 @@ from flax.jax_utils import unreplicate
 from flax.training import train_state, common_utils
 import optax
 
-import tqdm
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 import imageio
 
