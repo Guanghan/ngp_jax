@@ -24,8 +24,10 @@ class Config:
     positional_encoding_max_degree: int = 10
     
     # Network hyper-params
-    num_dense_layers: int = 8  # for MLP
-    dense_layer_width: int = 256 # dimension of dense layers' output space
+    num_dense_layers: int = 8  # for MLP first part
+    dense_layer_width: int = 256 # dimension of dense layers' output space, first part
+    num_dense_layers_dir: int = 1  # for MLP second part
+    dense_layer_width_dir: int = 256 # dimension of dense layers' output space, second part
 
     # Training hyper-params 
     batch_size: int = int(1e4)

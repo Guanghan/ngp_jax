@@ -6,6 +6,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from typing import Any, Callable
+import functools
 
 from config import Config
 config = Config()
@@ -50,6 +51,7 @@ class BasicNeRF2(nn.Module):
     (2) output (r, g, b, sigma) together, do NOT use the two-stage scheme: \
         first input xyz, output sigma
         then input dir and sigma, output rgb
+    (3) do not use directions as condition to the MLPs
     """
     dtype: Any = jnp.float32
     precision: Any = lax.Precision.DEFAULT
@@ -88,6 +90,7 @@ class BasicNeRF(nn.Module):
     (2) output (r, g, b, sigma) together, do NOT use the two-stage scheme: \
         first input xyz, output sigma
         then input dir and sigma, output rgb
+    (3) do not use directions as condition to the MLPs
     """
     dtype: Any = jnp.float32
     precision: Any = lax.Precision.DEFAULT
@@ -122,5 +125,52 @@ class VanilaNeRF(nn.Module):
     """
     The original NeRF described in the paper:
     https://arxiv.org/abs/2003.08934
+
+    x:  input points in shape of (-1, num_pts, feature)
+    condition: jnp.ndarray(float32), [batch, feature], if not None, this
+        variable will be part of the input to the second part of the MLP
+        concatenated with the output vector of the first part of the MLP. If
+        None, only the first part of the MLP will be used with input x. In the
+        original paper, this variable is the view direction.
     """
-    pass
+
+    @nn.compact
+    def __call__(self, x, condition=None):
+        _, num_pts, feature_dim = x.shape
+        x = x.reshape([-1, feature_dim])
+
+        dense_layer = functools.partial(nn.Dense, kernel_init=jax.nn.initializers.glorot_uniform())
+
+        inputs = x
+        for i in range(config.num_dense_layers):
+            # fc layer
+            x = nn.dense_layer(config.dense_layer_width)(x)
+            x = nn.relu(x)
+
+            if i % config.skip_layer == 0 and i > 0:
+                x = jnp.concatenate([x, inputs], axis = -1)
+        
+        raw_sigma = dense_layer(1)(x).reshape([-1, num_pts, 1])
+
+        if condition is not None:
+            bottleneck = dense_layer(config.dense_layer_width)(x)
+
+            # Broadcast condition from [batch, feature] to
+            # [batch, num_samples, feature] since all the samples along the same ray
+            # have the same viewdir.
+            condition = jnp.tile(condition[:, None, :], (1, num_pts, 1))
+
+            # Collapse the [batch, num_samples, feature] tensor to
+            # [batch * num_samples, feature] so that it can be fed into nn.Dense.
+            condition = condition.reshape([-1, condition.shape[-1]])
+
+            x = jnp.concatenate([bottleneck, condition], axis=-1)
+
+            # use 1 extra layer to align with the original nerf model
+            for i in range(config.num_dense_layers_dir):
+                x = dense_layer(config.dense_layer_width_dir)(x)
+                x = nn.relu(x)
+        
+        raw_rgb = dense_layer(3)(x).reshape([-1, num_pts, 3])
+        return raw_rgb, raw_sigma
+
