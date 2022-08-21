@@ -121,7 +121,7 @@ class BasicNeRF(nn.Module):
         x = nn.Dense(4, dtype=self.dtype, precision=self.precision)(x)
         return x
 
-class VanilaNeRF(nn.Module):
+class VanillaNeRF(nn.Module):
     """
     The original NeRF described in the paper:
     https://arxiv.org/abs/2003.08934
