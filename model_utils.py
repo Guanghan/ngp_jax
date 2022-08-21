@@ -22,22 +22,22 @@ def generate_rays(ht, wid, focal, pose):
     """
     # (1) img_coords -> film_coords -> cam_coords
     # Create a 2D rectangular grid for the rays corresponding to image dims
-    i, j = jnp.meshgrid(np.arange(wid), np.arange(ht), indexing="xy")
+    i, j = np.meshgrid(np.arange(wid), np.arange(ht), indexing="xy")
     offset_x = offset_y = 0.5
     transformed_i = (i - wid * offset_x) / focal 
     transformed_j = -(j - ht * offset_y) / focal 
     # Create the unit vectors corresponding to ray directions
-    k = -jnp.ones_like(i) # z-axis coordinates
-    directions = jnp.stack([transformed_i, transformed_j, k], axis=-1)
+    k = -np.ones_like(i) # z-axis coordinates
+    directions = np.stack([transformed_i, transformed_j, k], axis=-1)
 
     # (2) cam_coords -> canonical_world_coords
     # Get rotation and translation matrices from the extrinsic params (transposed 4x4 homo trans matrix)
     rotation_matrix, translation_matrix = pose[:3, :3], pose[:3, -1]
     # Matrix multiplication for each pixel (i, j).  rotation_matrix * 3d_coords
-    ray_directions = jnp.einsum("i j l, k l -> i j k", directions, rotation_matrix)
+    ray_directions = np.einsum("i j l, k l -> i j k", directions, rotation_matrix)
     ray_origins = repeat(translation_matrix, 'k -> i j k', i=wid, j=ht, k=3)
     
-    return jnp.stack([ray_origins, ray_directions])
+    return np.stack([ray_origins, ray_directions])
 
 
 def compute_3d_points(ray_origins, ray_directions, rand_num_generator=None):
@@ -52,7 +52,7 @@ def compute_3d_points(ray_origins, ray_directions, rand_num_generator=None):
     :return: The points along the ray and the t_vals
     """
     # sample space to parametrically compute the ray points
-    t_vals = jnp.linspace(config.near_bound, config.far_bound, config.num_sample_points)
+    t_vals = np.linspace(config.near_bound, config.far_bound, config.num_sample_points)
 
     # inject a random noise into the sample space to make it continuous
     '''
