@@ -1,0 +1,5 @@
+.DS_Store
+.vscode/*
+*.npz
+notebook_debug.ipynb
+__pycache__/*

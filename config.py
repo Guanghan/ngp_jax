@@ -28,6 +28,7 @@ class Config:
     dense_layer_width: int = 256 # dimension of dense layers' output space, first part
     num_dense_layers_dir: int = 1  # for MLP second part
     dense_layer_width_dir: int = 256 # dimension of dense layers' output space, second part
+    skip_layer: int = 4  # the layer to add skips layers to
 
     # Training hyper-params 
     batch_size: int = int(1e4)

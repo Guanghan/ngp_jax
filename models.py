@@ -136,15 +136,16 @@ class VanilaNeRF(nn.Module):
 
     @nn.compact
     def __call__(self, x, condition=None):
-        _, num_pts, feature_dim = x.shape
-        x = x.reshape([-1, feature_dim])
+        #_, num_pts, feature_dim = x.shape
+        #x = x.reshape([-1, feature_dim])
+        num_pts, feature_dim = x.shape
 
         dense_layer = functools.partial(nn.Dense, kernel_init=jax.nn.initializers.glorot_uniform())
 
         inputs = x
         for i in range(config.num_dense_layers):
             # fc layer
-            x = nn.dense_layer(config.dense_layer_width)(x)
+            x = dense_layer(config.dense_layer_width)(x)
             x = nn.relu(x)
 
             if i % config.skip_layer == 0 and i > 0:
@@ -172,5 +173,7 @@ class VanilaNeRF(nn.Module):
                 x = nn.relu(x)
         
         raw_rgb = dense_layer(3)(x).reshape([-1, num_pts, 3])
-        return raw_rgb, raw_sigma
+        return jnp.concatenate([raw_rgb, raw_sigma], axis=-1)
+        #return raw_rgb, raw_sigma
+
 
