@@ -7,10 +7,11 @@ from render import pose_spherical
 import gin
 from pickletools import optimize
 
+import jax
 import numpy as np
 from jax import numpy as jnp
 from jax import jit, pmap, value_and_grad, lax, \
-                local_device_count, random, \
+                local_device_count, \
                 device_put_replicated, local_devices
 
 from flax.jax_utils import unreplicate
@@ -84,11 +85,11 @@ def train_and_evaluate(state, train_step_fn, validation_step_fn):
 
     for epoch in tqdm(range(config.train_epochs)):
         # shard random number generators
-        rng_index, rng_epoch = random.split(random.fold_in(rng, epoch))
+        rng_index, rng_epoch = jax.random.split(jax.random.fold_in(rng, epoch))
         sharded_rngs = common_utils.shard_prng_key(rng_epoch)
 
         # create training batch 
-        train_index = random.randint(rng_index, (n_devices,), minval=0, maxval=len(train_rays))
+        train_index = jax.random.randint(rng_index, (n_devices,), minval=0, maxval=len(train_rays))
         train_batch = train_rays[tuple(train_index), ...],\
                       train_images[tuple(train_index), ...]
         
@@ -193,7 +194,7 @@ if __name__ == '__main__':
     n_devices = local_device_count()
 
     # rand number generation
-    key, rng = random.split(random.PRNGKey(0))
+    key, rng = jax.random.split(jax.random.PRNGKey(0))
 
     # init the model
     model, params = init_model(key, (img_ht*img_wid, 3))
