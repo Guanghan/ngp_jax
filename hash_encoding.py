@@ -19,9 +19,10 @@ class HashEmbedder(nn.Module):
 
     output_dim = n_levels * n_feats_per_level # L*F
     b = jnp.exp((jnp.log(finest_res) - jnp.log(coarse_res)) / (n_levels-1)) # equation (3)
+    # Embed: A parameterized function from integers [0, n) to d-dimensional vectors.
     embeddings = [nn.Embed(num_embeddings= 2**log2_hash_sz, 
                            features= n_feats_per_level, 
-                           param_dtype= jnp.float16)]
+                           param_dtype= jnp.float16)]  # float16 in paper
 
     BOX_OFFSETS = jnp.array([[[i,j,k] for i in [0, 1] for j in [0, 1] for k in [0, 1]]])
 
@@ -52,14 +53,32 @@ class HashEmbedder(nn.Module):
 
 
     @jax.jit
-    def trilinear_interp(self, x, voxel_min_vert, voxel_max_vert, voxel_embeds):
+    def trilinear_interp(self, x, vox_min_vert, vox_max_vert, vox_embeds):
         '''
         x:  Bx3
         voxel_min_vert:  Bx3
         voxel_max_vert:  Bx3
         voxel_embeds:    Bx8x2
         '''
-        pass
+        # Reference: https://en.wikipedia.org/wiki/Trilinear_interpolation
+        weights = (x - vox_min_vert) / (vox_max_vert - vox_min_vert) # Bx3
+
+        # step 1
+        # index representation: 
+        # 0->000, 1->001, 2->010, 3->011, 4->100. 5->101 6->110. 7->111
+        c00 = vox_embeds[:,0]*(1-weights[:,0][:,None]) + vox_embeds[:,4]*weights[:,0][:,None]
+        c01 = vox_embeds[:,1]*(1-weights[:,0][:,None]) + vox_embeds[:,5]*weights[:,0][:,None]
+        c10 = vox_embeds[:,2]*(1-weights[:,0][:,None]) + vox_embeds[:,6]*weights[:,0][:,None]
+        c11 = vox_embeds[:,3]*(1-weights[:,0][:,None]) + vox_embeds[:,7]*weights[:,0][:,None]
+        
+        # step 2
+        c0 = c00*(1-weights[:,1][:,None]) + c10*weights[:,1][:,None]
+        c1 = c01*(1-weights[:,1][:,None]) + c11*weights[:,1][:,None]
+
+        # step 3
+        c = c0*(1-weights[:,2][:,None]) + c1*weights[:,2][:,None]
+
+        return c
 
 
     def get_voxel_vertices(self, xyz, bbox3D, resolution, log2_hash_sz):
@@ -76,7 +95,7 @@ class HashEmbedder(nn.Module):
         
         grid_size = (box_max - box_min) / resolution
 
-        bottom_left_idx = jnp.floor((xyz - box_min)/grid_size).int()
+        bottom_left_idx = jnp.floor((xyz - box_min)/grid_size).astype(int)
 
         vox_min_vert = bottom_left_idx * grid_size + box_min
         vox_max_vert = vox_min_vert + jnp.array([1.0, 1.0, 1.0]) * grid_size
