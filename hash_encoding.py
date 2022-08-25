@@ -9,44 +9,42 @@ config = Config()
 
 
 class HashEmbedder(nn.Module):
-    bbox3D: Any = config.bbox3D    # only deal with points within bbox3D
-    
     n_levels: int = 16             # L
     n_feats_per_level: int = 2     # F
     finest_res: int = 512          # N_max
     coarse_res: int = 16           # N_min
     log2_hash_sz: int = 19         # log2(T) -> T = 2^19
-
-    output_dim = n_levels * n_feats_per_level # L*F
-    b = jnp.exp((jnp.log(finest_res) - jnp.log(coarse_res)) / (n_levels-1)) # equation (3)
-    
-    BOX_OFFSETS = jnp.array([[[i,j,k] for i in [0, 1] for j in [0, 1] for k in [0, 1]]])
-
-    # initialize embeddings (how?) 
-    embeddings = []
-    for i in range(n_levels):
-        #print("init hashnerf embeddings")
-        # Embed: A parameterized function from integers [0, n) to d-dimensional vectors.
-        embed = nn.Embed(num_embeddings= 2**log2_hash_sz, 
-                           features= n_feats_per_level, 
-                           param_dtype= jnp.float32)  # float16 in paper
-        jax.nn.initializers.glorot_uniform(embed) 
-        embeddings.append(embed)
+    BOX_OFFSETS: jnp.array = jnp.array([[[i,j,k] for i in [0, 1] for j in [0, 1] for k in [0, 1]]])
 
     @nn.compact
     def __call__(self, input_points):
+        output_dim = self.n_levels * self.n_feats_per_level # L*F
+        b = jnp.exp((jnp.log(self.finest_res) - jnp.log(self.coarse_res)) / (self.n_levels-1)) # equation (3)
+
+        # Construct embeddings 
+        hash_embeddings = []
+        for i in range(self.n_levels):
+            # Embed: A parameterized function from integers [0, n) to d-dimensional vectors.
+            cur_embed = nn.Embed(num_embeddings= 2**self.log2_hash_sz, 
+                            features= self.n_feats_per_level, 
+                            param_dtype= jnp.float32)  # float16 in paper
+            jax.nn.initializers.glorot_uniform(cur_embed) 
+            hash_embeddings.append(cur_embed)
+
         # input_points: Bx3
+        bbox3D = config.bbox3D    # only deal with points within bbox3D
         embeds_all = []
         for i in range(self.n_levels):
             # get the resolution for this level
-            resolution = jnp.floor(self.coarse_res * self.b**i)
+            resolution = jnp.floor(self.coarse_res * b**i)
             # get the 8 voxel vertices at this level
             vox_min_vert, vox_max_vert, hashed_vox_indices = self.get_voxel_vertices(input_points,
-                                                                                    self.bbox3D, 
+                                                                                    bbox3D, 
                                                                                     resolution, 
                                                                                     self.log2_hash_sz)
+            
             # get 8 vertex feature embeddings with indices from the hash encoding
-            vox_embeds = self.embeddings[i](hashed_vox_indices)
+            vox_embeds = hash_embeddings[i](hashed_vox_indices)
             # interpolate to get the point features from 8 vertices
             pt_embed = self.trilinear_interp(input_points, vox_min_vert, vox_max_vert, vox_embeds)
             # combine features from all levels
@@ -55,7 +53,6 @@ class HashEmbedder(nn.Module):
         return jnp.concatenate(embeds_all, axis=-1)
 
 
-    @jax.jit
     def trilinear_interp(self, x, vox_min_vert, vox_max_vert, vox_embeds):
         '''
         x:  Bx3
@@ -92,9 +89,9 @@ class HashEmbedder(nn.Module):
         '''
         box_min, box_max = bbox3D
 
-        if not jnp.all(xyz < box_max) or not jnp.all(xyz > box_min):
-            pdb.set_trace()
-            xyz = jnp.clamp(xyz, min=box_min, max=box_max)
+        # if not jnp.all(xyz < box_max) or not jnp.all(xyz > box_min):
+        #     pdb.set_trace()
+        #     xyz = jnp.clamp(xyz, min=box_min, max=box_max)
         
         grid_size = (box_max - box_min) / resolution
 

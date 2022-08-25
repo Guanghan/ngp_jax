@@ -190,19 +190,20 @@ class HashNeRF(nn.Module):
         None, only the first part of the MLP will be used with input x. In the
         original paper, this variable is the view direction.
     """
-    embeder = HashEmbedder()
 
     @nn.compact
-    def __call__(self, x, condition=None):
+    def __call__(self, inputs, condition=None):
+        # Construct hash embedder
+        embeder = HashEmbedder()
+        
+        # apply hash encoding 
+        x = embeder(inputs)
+        
         num_pts, feature_dim = x.shape
 
         dense_layer = functools.partial(nn.Dense, kernel_init=jax.nn.initializers.glorot_uniform())
 
-        # apply hash encoding 
-        #x = self.embeder.apply(x)
-        x = self.embeder(x)
         # point to the encoded input for future skip connection
-        inputs = x
         for i in range(config.num_dense_layers):
             # fc layer
             x = dense_layer(config.dense_layer_width)(x)

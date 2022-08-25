@@ -78,13 +78,17 @@ def compute_radiance_field(model, points):
     Take the points, reshape them to be a list of batches, apply the model to each batch, and then
     reshape the output back to the original shape
     
-    :param model: the model we trained
-    :param points: (w, h, samples, 3)
+    :param model: the NeRF model we train
+    :param points or corresponding embeddings: (w, h, samples, 3)
+    :return: 
+        opacity in (w, h, samples, 1)
+        rgb in (w, h, samples, 3)
     """
     # compared to jax.vmap, lax.map will apply the function element by element\
     # for reduced memory usage
-    # points: (w, h, samples, 3) -> (-1, batch, 3)
-    model_output = lax.map(model, jnp.reshape(points, (-1, config.batch_size, 3))) 
+    # points: (w, h, samples, 3) -> (-1, batch, 3) 
+    w, h, samples, k = points.shape
+    model_output = lax.map(model, jnp.reshape(points, (-1, config.batch_size, k))) 
     
     # model_output:(-1, batch, 4) -> radiance_field: (w, h, samples, 4)
     radiance_field = jnp.reshape(model_output, points.shape[:-1] + (4,))
@@ -93,6 +97,26 @@ def compute_radiance_field(model, points):
     colors = nn.sigmoid(radiance_field[..., :3])
 
     return opacities, colors
+
+
+def hash_encode_points(embed_model, points):
+    """
+    :param model: the Embedding model we train
+    :param points: (w, h, samples, 3)
+    :return: points embeddings in (w, h, samples, k)
+    """
+    w, h, samples, _ = points.shape
+    embed_output = lax.map(embed_model, jnp.reshape(points, (-1, config.batch_size, 3))) 
+
+    # embed:(-1, batch, k) -> (w, h, samples, k)
+    points_embeddings = rearrange(embed_output, 
+                                  "n b k -> w h s k", 
+                                  n=(w*h*samples)//config.batch_size, 
+                                  b=config.batch_size, 
+                                  w=w,
+                                  h=h,
+                                  s=samples)
+    return points_embeddings
 
 
 def compute_adjacent_distances(t_vals, ray_directions):
