@@ -8,6 +8,8 @@ import jax.numpy as jnp
 from typing import Any, Callable
 import functools
 
+from hash_encoding import HashEmbedder
+
 from config import Config
 config = Config()
 
@@ -121,6 +123,7 @@ class BasicNeRF(nn.Module):
         x = nn.Dense(4, dtype=self.dtype, precision=self.precision)(x)
         return x
 
+
 class VanillaNeRF(nn.Module):
     """
     The original NeRF described in the paper:
@@ -174,6 +177,61 @@ class VanillaNeRF(nn.Module):
         
         raw_rgb = dense_layer(3)(x).reshape([-1, num_pts, 3])
         return jnp.concatenate([raw_rgb, raw_sigma], axis=-1)
-        #return raw_rgb, raw_sigma
+
+
+class HashNeRF(nn.Module):
+    """
+    The original NeRF but replaced with hash encoding
+
+    x:  input points in shape of (-1, num_pts, feature)
+    condition: jnp.ndarray(float32), [batch, feature], if not None, this
+        variable will be part of the input to the second part of the MLP
+        concatenated with the output vector of the first part of the MLP. If
+        None, only the first part of the MLP will be used with input x. In the
+        original paper, this variable is the view direction.
+    """
+    embeder = HashEmbedder()
+
+    @nn.compact
+    def __call__(self, x, condition=None):
+        num_pts, feature_dim = x.shape
+
+        dense_layer = functools.partial(nn.Dense, kernel_init=jax.nn.initializers.glorot_uniform())
+
+        # apply hash encoding 
+        x = self.embeder.apply(x)
+        # point to the encoded input for future skip connection
+        inputs = x
+        for i in range(config.num_dense_layers):
+            # fc layer
+            x = dense_layer(config.dense_layer_width)(x)
+            x = nn.relu(x)
+
+            if config.skip_layer != 0 and i % config.skip_layer == 0 and i > 0:
+                x = jnp.concatenate([x, inputs], axis = -1)
+        
+        raw_sigma = dense_layer(1)(x).reshape([-1, num_pts, 1])
+
+        if condition is not None:
+            bottleneck = dense_layer(config.dense_layer_width)(x)
+
+            # Broadcast condition from [batch, feature] to
+            # [batch, num_samples, feature] since all the samples along the same ray
+            # have the same viewdir.
+            condition = jnp.tile(condition[:, None, :], (1, num_pts, 1))
+
+            # Collapse the [batch, num_samples, feature] tensor to
+            # [batch * num_samples, feature] so that it can be fed into nn.Dense.
+            condition = condition.reshape([-1, condition.shape[-1]])
+
+            x = jnp.concatenate([bottleneck, condition], axis=-1)
+
+            # use 1 extra layer to align with the original nerf model
+            for i in range(config.num_dense_layers_dir):
+                x = dense_layer(config.dense_layer_width_dir)(x)
+                x = nn.relu(x)
+        
+        raw_rgb = dense_layer(3)(x).reshape([-1, num_pts, 3])
+        return jnp.concatenate([raw_rgb, raw_sigma], axis=-1)
 
 

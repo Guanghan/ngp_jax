@@ -1,0 +1,6 @@
+Config.batch_size = 64
+Config.num_dense_layers: int = 3  # for MLP first part
+Config.dense_layer_width: int = 64 # dimension of dense layers' output space, first part
+Config.num_dense_layers_dir: int = 4  # for MLP second part
+Config.dense_layer_width_dir: int = 64 # dimension of dense layers' output space, second part
+Config.skip_layer: int = 0  # the layer to add skips layers to
