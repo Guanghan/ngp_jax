@@ -22,7 +22,7 @@ class HashEmbedder(nn.Module):
     # Embed: A parameterized function from integers [0, n) to d-dimensional vectors.
     embeddings = [nn.Embed(num_embeddings= 2**log2_hash_sz, 
                            features= n_feats_per_level, 
-                           param_dtype= jnp.float16)]  # float16 in paper
+                           param_dtype= jnp.float32)]  # float16 in paper
 
     BOX_OFFSETS = jnp.array([[[i,j,k] for i in [0, 1] for j in [0, 1] for k in [0, 1]]])
 
@@ -110,6 +110,7 @@ class HashEmbedder(nn.Module):
         '''
         coords: 3D coordinates in shape Bx3
         log2T: logarithm of T w.r.t 2
+        Reference: http://www.beosil.com/download/CollisionDetectionHashing_VMV03.pdf
         '''
         x, y, z = coords[...,0], coords[...,1], coords[...,2]
         return ((1<<log2_hash_sz)-1) & (x*73856093 ^ y*19349663 ^ z*83492791)
