@@ -19,16 +19,19 @@ class HashEmbedder(nn.Module):
 
     output_dim = n_levels * n_feats_per_level # L*F
     b = jnp.exp((jnp.log(finest_res) - jnp.log(coarse_res)) / (n_levels-1)) # equation (3)
-    # Embed: A parameterized function from integers [0, n) to d-dimensional vectors.
-    embeddings = [nn.Embed(num_embeddings= 2**log2_hash_sz, 
-                           features= n_feats_per_level, 
-                           param_dtype= jnp.float32)]  # float16 in paper
-
+    
     BOX_OFFSETS = jnp.array([[[i,j,k] for i in [0, 1] for j in [0, 1] for k in [0, 1]]])
 
     # initialize embeddings (how?) 
+    embeddings = []
     for i in range(n_levels):
-       jax.nn.initializers.glorot_uniform(embeddings[i]) 
+        #print("init hashnerf embeddings")
+        # Embed: A parameterized function from integers [0, n) to d-dimensional vectors.
+        embed = nn.Embed(num_embeddings= 2**log2_hash_sz, 
+                           features= n_feats_per_level, 
+                           param_dtype= jnp.float32)  # float16 in paper
+        jax.nn.initializers.glorot_uniform(embed) 
+        embeddings.append(embed)
 
     @nn.compact
     def __call__(self, input_points):

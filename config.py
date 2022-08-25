@@ -1,6 +1,8 @@
 import dataclasses
 import gin
 
+from jax import numpy as jnp
+
 
 @gin.configurable()
 @dataclasses.dataclass
@@ -22,6 +24,9 @@ class Config:
     positional_encoding_dims_dir: int = 4  # 3+3*4*2=27 by default, for vanilaNeRF
     positional_encoding_min_degree: int = 1
     positional_encoding_max_degree: int = 10
+    
+    # Hash-encoding hyper-params
+    bbox3D: jnp.array = jnp.array([[-2.7, -2.7, -2.7], [2.2, 2.2, 2.2]])
     
     # Network hyper-params
     num_dense_layers: int = 8  # for MLP first part

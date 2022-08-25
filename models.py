@@ -199,7 +199,8 @@ class HashNeRF(nn.Module):
         dense_layer = functools.partial(nn.Dense, kernel_init=jax.nn.initializers.glorot_uniform())
 
         # apply hash encoding 
-        x = self.embeder.apply(x)
+        #x = self.embeder.apply(x)
+        x = self.embeder(x)
         # point to the encoded input for future skip connection
         inputs = x
         for i in range(config.num_dense_layers):
