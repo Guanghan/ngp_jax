@@ -1,7 +1,8 @@
 from flax import linen as nn
 from jax import numpy as jnp
-import jax
+import jax, flax
 from typing import Any
+import pdb
 
 from config import Config
 config = Config()
@@ -21,6 +22,8 @@ class HashEmbedder(nn.Module):
     embeddings = [nn.Embed(num_embeddings= 2**log2_hash_sz, 
                            features= n_feats_per_level, 
                            param_dtype= jnp.float16)]
+
+    BOX_OFFSETS = jnp.array([[[i,j,k] for i in [0, 1] for j in [0, 1] for k in [0, 1]]])
 
     # initialize embeddings (how?) 
     for i in range(n_levels):
@@ -65,4 +68,29 @@ class HashEmbedder(nn.Module):
         bbox3D: min and max x,y,z coordinates of a 3D object bbox
         resolution: number of voxels per axis
         '''
-        pass
+        box_min, box_max = bbox3D
+
+        if not jnp.all(xyz < box_max) or not jnp.all(xyz > box_min):
+            pdb.set_trace()
+            xyz = jnp.clamp(xyz, min=box_min, max=box_max)
+        
+        grid_size = (box_max - box_min) / resolution
+
+        bottom_left_idx = jnp.floor((xyz - box_min)/grid_size).int()
+
+        vox_min_vert = bottom_left_idx * grid_size + box_min
+        vox_max_vert = vox_min_vert + jnp.array([1.0, 1.0, 1.0]) * grid_size
+
+        vox_indices = jnp.expand_dims(bottom_left_idx, 1) + self.BOX_OFFSETS
+        hashed_vox_indices = self.hash(vox_indices, log2_hash_sz)
+
+        return vox_min_vert, vox_max_vert, hashed_vox_indices
+    
+
+    def hash(self, coords, log2_hash_sz):
+        '''
+        coords: 3D coordinates in shape Bx3
+        log2T: logarithm of T w.r.t 2
+        '''
+        x, y, z = coords[...,0], coords[...,1], coords[...,2]
+        return ((1<<log2_hash_sz)-1) & (x*73856093 ^ y*19349663 ^ z*83492791)
