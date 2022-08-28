@@ -3,6 +3,7 @@ from jax import numpy as jnp
 import jax, flax
 from typing import Any
 import pdb
+from jax import jit
 
 from config import Config
 config = Config()
@@ -27,8 +28,8 @@ class HashEmbedder(nn.Module):
             # Embed: A parameterized function from integers [0, n) to d-dimensional vectors.
             cur_embed = nn.Embed(num_embeddings= 2**self.log2_hash_sz, 
                             features= self.n_feats_per_level, 
+                            embedding_init = jax.nn.initializers.uniform(scale=1e-4),
                             param_dtype= jnp.float32)  # float16 in paper
-            jax.nn.initializers.glorot_uniform(cur_embed) 
             hash_embeddings.append(cur_embed)
 
         # input_points: Bx3
@@ -52,7 +53,7 @@ class HashEmbedder(nn.Module):
 
         return jnp.concatenate(embeds_all, axis=-1)
 
-
+    @jit
     def trilinear_interp(self, x, vox_min_vert, vox_max_vert, vox_embeds):
         '''
         x:  Bx3
@@ -80,7 +81,7 @@ class HashEmbedder(nn.Module):
 
         return c
 
-
+    @jit
     def get_voxel_vertices(self, xyz, bbox3D, resolution, log2_hash_sz):
         '''
         xyz: 3D coordinates of sample points, shape Bx3
@@ -105,7 +106,7 @@ class HashEmbedder(nn.Module):
 
         return vox_min_vert, vox_max_vert, hashed_vox_indices
     
-
+    @jit
     def hash(self, coords, log2_hash_sz):
         '''
         coords: 3D coordinates in shape Bx3
