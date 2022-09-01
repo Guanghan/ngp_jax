@@ -13,6 +13,8 @@ The instant ngp in pure JAX still needs optimization. Currently, it is way slowe
 ## Prerequisites
  - Set up a virtual Python3 environment, then install necessary packages with this command
    ```Shell
+   conda create --name jax_ngp python=3
+   conda activate jax_ngp
    pip install -r requirements.txt
    ```
  - Or, just open Google Colab and run **notebook_train.ipynb** 
