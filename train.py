@@ -1,6 +1,6 @@
 from opt import get_opts
 from config import Config
-from models import BasicNeRF
+from models import ToyNeRF, SimpleNeRF, VanillaNeRF, HashNeRF
 from model_utils import generate_rays, perform_volume_rendering
 from render import pose_spherical
 
@@ -25,7 +25,7 @@ import imageio
 
 def init_model(key, input_pts_shape):
     # create model
-    model = BasicNeRF()
+    model = ToyNeRF()
 
     # init model
     init_params = jit(model.init)({"params":key}, jnp.ones(input_pts_shape))
@@ -83,10 +83,10 @@ def train_and_evaluate(state, train_step_fn, validation_step_fn):
     train_loss_history, train_psnr_history = [], []
     val_loss_history, val_psnr_history = [], []
 
-    for epoch in tqdm(range(config.train_epochs)):
+    for iteration in tqdm(range(config.train_iterations)):
         # shard random number generators
-        rng_index, rng_epoch = jax.random.split(jax.random.fold_in(rng, epoch))
-        sharded_rngs = common_utils.shard_prng_key(rng_epoch)
+        rng_index, rng_iteration = jax.random.split(jax.random.fold_in(rng, iteration))
+        sharded_rngs = common_utils.shard_prng_key(rng_iteration)
 
         # create training batch 
         train_index = jax.random.randint(rng_index, (n_devices,), minval=0, maxval=len(train_rays))
@@ -101,8 +101,8 @@ def train_and_evaluate(state, train_step_fn, validation_step_fn):
         train_psnr_history.append(avg_train_psnr)
         
         # logging
-        print("Train loss @ epoch {}: {}".format(epoch, avg_train_loss))
-        print("Train psnr @ epoch {}: {}".format(epoch, avg_train_psnr))
+        print("Train loss @ iteration {}: {}".format(iteration, avg_train_loss))
+        print("Train psnr @ iteration {}: {}".format(iteration, avg_train_psnr))
 
         # perform validation step
         validation_state = unreplicate(state)
@@ -113,17 +113,17 @@ def train_and_evaluate(state, train_step_fn, validation_step_fn):
         val_psnr_history.append(avg_val_psnr)
         
         # logging
-        print("Val loss @ epoch {}: {}".format(epoch, avg_train_loss))
-        print("Val psnr @ epoch {}: {}".format(epoch, avg_train_psnr))
+        print("Val loss @ iteration {}: {}".format(iteration, avg_train_loss))
+        print("Val psnr @ iteration {}: {}".format(iteration, avg_train_psnr))
 
         # plot result at every plot interval
-        if epoch % config.plot_interval == 0:
+        if iteration % config.plot_interval == 0:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10,4))
             ax1.imshow(rgb)
-            ax1.set_title("Predicted RGB at epoch: {}".format(epoch))
+            ax1.set_title("Predicted RGB at iteration: {}".format(iteration))
             ax1.axis('off')
             ax2.imshow(depth)
-            ax2.set_title('Predicted RGB at epoch: {}'.format(epoch))
+            ax2.set_title('Predicted RGB at iteration: {}'.format(iteration))
             ax2.axis('off')
             plt.show()
     

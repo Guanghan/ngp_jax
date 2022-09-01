@@ -46,9 +46,9 @@ def positional_encoding_trig(inputs):
     return jnp.concatenate([inputs] + [four_feat], axis=-1)
 
 
-class BasicNeRF2(nn.Module):
+class ToyNeRF(nn.Module):
     """
-    An even simpler NeRF than the vanila NeRF:
+    The simplest toy example of NeRF:
     (1) xyz and direction share the same encoding, default_freqs = 6
     (2) output (r, g, b, sigma) together, do NOT use the two-stage scheme: \
         first input xyz, output sigma
@@ -85,7 +85,7 @@ class BasicNeRF2(nn.Module):
         return x
 
 
-class BasicNeRF(nn.Module):
+class SimpleNeRF(nn.Module):
     """
     An even simpler NeRF than the vanila NeRF:
     (1) xyz and direction share the same encoding, default_freqs = 6

@@ -38,7 +38,7 @@ class Config:
     # Training hyper-params 
     batch_size: int = int(1e4)
     lr: float = 5e-4  # learning rate
-    train_epochs: int = 1000 # number of training epoches
+    train_iteration: int = 1000 # number of training iterations
 
     # visualization
-    plot_interval: int = 100  # plot validation result after this number of epoches
+    plot_interval: int = 100  # plot validation result after this number of iterations

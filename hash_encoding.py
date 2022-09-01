@@ -30,6 +30,7 @@ class HashEmbedder(nn.Module):
                             features= self.n_feats_per_level, 
                             embedding_init = jax.nn.initializers.uniform(scale=1e-4),
                             param_dtype= jnp.float32)  # float16 in paper
+            jax.nn.initializers.glorot_uniform(cur_embed) 
             hash_embeddings.append(cur_embed)
 
         # input_points: Bx3
