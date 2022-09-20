@@ -46,6 +46,66 @@ class DenseBlock(nn.Module):
         # fc layer
         x = nn.Dense(hiddens,
                      kernel_init=initializer)(x)
+        return x
+
+
+def layer_norm(x: jnp.ndarray,
+               name: Optional[str] = None)-> jnp.ndarray:
+    return nn.LayerNorm(use_bias=True, use_scale=True)(x)
+
+
+class Transformer(nn.Module):
+    """
+    A transformer stack. Each block includes:
+    - a norm layer
+    - a self-attention layer
+    - two dropout layers
+    - two normalization layers
+    - two skip connections
+    - a 2-layered Dense block
+    """
+    num_heads: int = 1
+    num_layers: int = 1
+    dropout_rate: float = 0.5
+    name: Optional[str] = None
+
+    def __call__(self, h, mask, is_training):
+        '''
+        Args: 
+            h: Inputs, jnp.ndarray, [B, T, H]
+            mask: Padding mask, jnp.ndarray, [B, T]
+            is_training: bool
+        '''
+        init_scale = 2. / self.num_layers
+        dropout_rate = self.dropout_rate if is_training else 0.
+        
+        initializer = jax.nn.initializers.variance_scaling(init_scale)
+
+        if mask is not None:
+            mask = mask[:, None, None, :]
+        
+        for i in range(self.num_layers):
+            h_norm = layer_norm(h, name=f'h{i}_ln_1')
+            h_attn = nn.SelfAttention(num_heads=self.num_heads,
+                                      qkv_features=64,
+                                      kernel_init=initializer,
+                                      bias_init=initializer,
+                                      name = f'h{i}_attn')(h_norm, mask=mask)
+            h_attn = nn.Dropout(rate=dropout_rate)(h)
+
+            h = h + h_attn # skip connection
+
+            h_norm = layer_norm(h, name=f'h{i}_ln_2')
+            h_dense = DenseBlock(init_scale, name=f'h{i}_mlp')(h_norm)
+            h_dense = nn.Dropout(rate=dropout_rate)(h_dense)
+
+            h = h + h_dense # skip connection
+        h = layer_norm(h, name='ln_f')
+        return h
+
+
+
+                                   
         
 
 
