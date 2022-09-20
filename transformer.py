@@ -5,7 +5,7 @@ import numpy as np
 import flax.linen as nn
 #import SelfAttention, MultiHeadDotProductAttention, Module
 
-from typing import Optional
+from typing import Optional, Mapping
 
 class SelfAttention(nn.MultiHeadDotProductAttention):
     '''
@@ -103,6 +103,23 @@ class Transformer(nn.Module):
         h = layer_norm(h, name='ln_f')
         return h
 
+
+def embeddings(data: Mapping[str, jnp.ndarray], vocab_size: int):
+    tokens = data['obs']
+    input_mask = jnp.greater(tokens, 0)
+    seq_len = tokens.shape[1]
+
+    # embed the input tokens and positions
+    embed_init =  jax.nn.initializers.glorot_normal()
+    token_embedding_map = nn.Embed(num_embeddings=vocab_size, dmodel
+                                   )
+    
+    token_embeds = token_embedding_map(tokens)
+
+    positional_embeds = flax.get_parameter()
+
+    input_embeds = token_embeds + positional_embeds
+    return input_embeds, input_mask
 
 
                                    
