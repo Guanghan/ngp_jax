@@ -104,22 +104,31 @@ class Transformer(nn.Module):
         return h
 
 
-def embeddings(data: Mapping[str, jnp.ndarray], vocab_size: int):
-    tokens = data['obs']
-    input_mask = jnp.greater(tokens, 0)
-    seq_len = tokens.shape[1]
 
-    # embed the input tokens and positions
-    embed_init =  jax.nn.initializers.glorot_normal()
-    token_embedding_map = nn.Embed(num_embeddings=vocab_size, dmodel
-                                   )
-    
-    token_embeds = token_embedding_map(tokens)
+class FlaxEmbeddings(nn.Module):
+    def setup(self):
+        embed_init =  jax.nn.initializers.glorot_normal()
+        self.token_embedding_map = nn.Embed(num_embeddings=vocab_size, d_model)
+        
+        # positional embeddings are trainable (as opposed to positional encodings in BERT that are fixed)
+        self.positional_embeds = 
+                                    )
 
-    positional_embeds = flax.get_parameter()
+    def embeddings(self, data: Mapping[str, jnp.ndarray], vocab_size: int):
+        """
+        Ref: 
+        https://theaisummer.com/positional-embeddings/
+        https://github.com/huggingface/transformers/blob/main/src/transformers/models/vit/modeling_flax_vit.py
+        """
+        tokens = data['obs']
+        input_mask = jnp.greater(tokens, 0)
+        seq_len = tokens.shape[1]
 
-    input_embeds = token_embeds + positional_embeds
-    return input_embeds, input_mask
+        # embed the input tokens and positions
+        token_embeds = self.token_embedding_map(tokens)
+        input_embeds = token_embeds + self.positional_embeds
+
+        return input_embeds, input_mask
 
 
                                    
