@@ -104,15 +104,16 @@ class Transformer(nn.Module):
         return h
 
 
-
+'''
 class FlaxEmbeddings(nn.Module):
     def setup(self):
         embed_init =  jax.nn.initializers.glorot_normal()
         self.token_embedding_map = nn.Embed(num_embeddings=vocab_size, d_model)
         
         # positional embeddings are trainable (as opposed to positional encodings in BERT that are fixed)
-        self.positional_embeds = 
-                                    )
+        self.positional_embeds = self.param(
+            "positional_embeds", nn.initializers.zeros, (1, num_patches+1, hidden_size)
+        )
 
     def embeddings(self, data: Mapping[str, jnp.ndarray], vocab_size: int):
         """
@@ -129,6 +130,7 @@ class FlaxEmbeddings(nn.Module):
         input_embeds = token_embeds + self.positional_embeds
 
         return input_embeds, input_mask
+'''
 
 
                                    
